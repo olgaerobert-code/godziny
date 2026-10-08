@@ -268,12 +268,18 @@ button:active { transform: scale(.97); }
   </section>
 </main>
 
-<script src="logika.js"></script>
+<!-- Przy każdej zmianie logika.js podbij ?v=, inaczej przeglądarka (pamięć 10 min) poda starą wersję. -->
+<script src="logika.js?v=3"></script>
 <script>
 (function () {
   'use strict';
   var R = window.Rozklad;
   var $ = function (id) { return document.getElementById(id); };
+  if (!R) {
+    $('komunikat').textContent = 'Strona nie wczytała się do końca. Odśwież ją i spróbuj jeszcze raz.';
+    $('formularz').addEventListener('submit', function (e) { e.preventDefault(); });
+    return;
+  }
   var WIERSZY = 31; // tyle wierszy ma wzór, niezależnie od liczby dni pracy
   var ostatni = null;
 
@@ -366,12 +372,22 @@ button:active { transform: scale(.97); }
     setTimeout(function () { document.title = tytul; }, 500);
   }
 
-  $('formularz').addEventListener('submit', function (e) { e.preventDefault(); licz(); });
-  $('ponownie').addEventListener('click', function () {
+  // Błąd nigdy nie może zostać cichy: zamiast „nic się nie dzieje” pokaż, co zrobić.
+  function bezpiecznie(f) {
+    return function () {
+      try { f.apply(this, arguments); } catch (err) {
+        pokazBlad('Coś poszło nie tak. Odśwież stronę i spróbuj jeszcze raz.');
+        if (window.console) console.error(err);
+      }
+    };
+  }
+
+  $('formularz').addEventListener('submit', function (e) { e.preventDefault(); bezpiecznie(licz)(); });
+  $('ponownie').addEventListener('click', bezpiecznie(function () {
     if (!ostatni) return;
     ostatni.wynik = R.rozdziel(ostatni.rok, ostatni.mc, ostatni.wynik.suma / 2);
     pokaz(true);
-  });
+  }));
   $('drukuj').addEventListener('click', drukuj);
 })();
 </script>
