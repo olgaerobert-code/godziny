@@ -146,65 +146,6 @@ button:active { transform: scale(.97); }
   line-height: 1.1;
   margin: 0;
 }
-.naglowek-wyniku p { margin: .25rem 0 0; color: var(--szary); }
-.naglowek-wyniku strong { color: var(--atrament); font-variant-numeric: tabular-nums; }
-
-/* Kalendarz ze słupkami 8–22 */
-.kalendarz {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
-}
-.dzien-tyg { font-size: .75rem; color: var(--szary); text-align: center; padding-bottom: 2px; }
-.dz {
-  border-radius: 8px;
-  min-height: 94px;
-  padding: 5px 0 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: var(--karta);
-  border: 1px solid var(--linia);
-  font-variant-numeric: tabular-nums;
-}
-.dz .nr { font-size: .8125rem; line-height: 1; }
-.dz.wolne {
-  background: repeating-linear-gradient(135deg, var(--wolne) 0 5px, transparent 5px 9px);
-  border-color: transparent;
-  color: var(--szary);
-}
-.dz.swieto .nr { text-decoration: underline dotted; text-underline-offset: 3px; }
-.dz.praca { border-color: var(--akcent); background: var(--akcent-tlo); }
-.dz.praca .nr { font-weight: 700; }
-.tor {
-  position: relative;
-  width: 10px;
-  flex: 1;
-  min-height: 50px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--szary) 18%, transparent);
-  overflow: hidden;
-}
-.blok {
-  position: absolute;
-  left: 0; right: 0;
-  border-radius: 5px;
-  background: var(--akcent);
-  transform-origin: top;
-}
-.dz .h { font-size: .75rem; font-weight: 700; line-height: 1; color: var(--akcent); }
-.legenda { font-size: .8125rem; color: var(--szary); margin: .75rem 0 0; }
-
-/* Jedyny ruch na stronie: dni pracy „wypełniają się” od godziny startu, kaskadą po kalendarzu. */
-@media (prefers-reduced-motion: no-preference) {
-  .rosnie .blok { animation: odslon 280ms var(--ease-out) both; animation-delay: calc(var(--i) * 22ms); }
-  @keyframes odslon { from { clip-path: inset(0 0 100% 0 round 5px); } to { clip-path: inset(0 0 0 0 round 5px); } }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rosnie .blok { animation: pojaw 200ms ease both; }
-  @keyframes pojaw { from { opacity: 0; } }
-}
 
 /* Tabela */
 .tabela { margin-top: 1.25rem; padding: 4px 0; overflow: hidden; }
@@ -232,7 +173,7 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
   :root { --atrament: #000; --szary: #444; --linia: #bbb; }
   body { background: #fff; color: #000; font-size: 11pt; }
   main { max-width: none; padding: 0; }
-  h1, .wstep, form, .akcje, .kalendarz, .legenda { display: none !important; }
+  h1, .wstep, form, .akcje { display: none !important; }
   #wynik { margin: 0; }
   .karta { border: 0; box-shadow: none; padding: 0; border-radius: 0; }
   .tabela { margin-top: 8mm; }
@@ -274,11 +215,7 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
   <section id="wynik" hidden aria-live="polite">
     <div class="naglowek-wyniku">
       <h2 id="tytul"></h2>
-      <p id="podsumowanie"></p>
     </div>
-
-    <div class="kalendarz" id="kalendarz"></div>
-    <p class="legenda">Słupek to dzień od 8:00 (góra) do 22:00 (dół). Kreskowane pola to niedziele i święta.</p>
 
     <div class="karta tabela">
       <table>
@@ -303,7 +240,6 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
   'use strict';
   var R = window.Rozklad;
   var $ = function (id) { return document.getElementById(id); };
-  var DNI_NAGL = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'nd.'];
   var ostatni = null;
 
   function wielka(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -361,60 +297,8 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
 
   function pokaz(ponowne) {
     var o = ostatni, wpisy = o.wynik.wpisy;
-    var poDniu = {};
-    wpisy.forEach(function (x) { poDniu[x.klucz] = x; });
 
     $('tytul').textContent = wielka(R.MIESIACE[o.mc - 1]) + ' ' + o.rok + (o.imie ? ', ' + o.imie : '');
-    $('podsumowanie').innerHTML = '';
-    var s = document.createElement('strong');
-    s.textContent = R.formatGodzin(o.wynik.suma) + ' h';
-    $('podsumowanie').append(s, ' w ' + wpisy.length + (wpisy.length === 1 ? ' dniu' : ' dniach') + ' pracy');
-
-    // Kalendarz
-    var kal = $('kalendarz');
-    kal.innerHTML = '';
-    kal.classList.remove('rosnie');
-    DNI_NAGL.forEach(function (d) {
-      var el = document.createElement('div');
-      el.className = 'dzien-tyg'; el.textContent = d;
-      kal.appendChild(el);
-    });
-    var dni = R.kalendarz(o.rok, o.mc);
-    for (var i = 0; i < (dni[0].dzienTyg + 6) % 7; i++) kal.appendChild(document.createElement('div'));
-    var kolejny = 0;
-    dni.forEach(function (d) {
-      var el = document.createElement('div');
-      var x = poDniu[d.klucz];
-      var nr = document.createElement('span');
-      nr.className = 'nr'; nr.textContent = d.dzien;
-      el.appendChild(nr);
-      if (d.wolne) {
-        el.className = 'dz wolne' + (d.powod !== 'niedziela' ? ' swieto' : '');
-        el.title = wielka(d.powod);
-      } else if (x) {
-        var dl = x.koniec - x.start;
-        el.className = 'dz praca';
-        el.title = R.formatCzasu(x.start) + '–' + R.formatCzasu(x.koniec);
-        var tor = document.createElement('div');
-        tor.className = 'tor';
-        var blok = document.createElement('div');
-        blok.className = 'blok';
-        blok.style.top = ((x.start - R.START) / R.OKNO * 100) + '%';
-        blok.style.height = (dl / R.OKNO * 100) + '%';
-        blok.style.setProperty('--i', kolejny++);
-        tor.appendChild(blok);
-        var h = document.createElement('span');
-        h.className = 'h'; h.textContent = R.formatGodzin(dl);
-        el.append(tor, h);
-      } else {
-        el.className = 'dz';
-      }
-      kal.appendChild(el);
-    });
-    void kal.offsetWidth;
-    kal.classList.add('rosnie');
-
-    // Tabela
     var tb = $('wiersze');
     tb.innerHTML = '';
     wpisy.forEach(function (x) {
@@ -432,7 +316,8 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
       });
       tb.appendChild(tr);
     });
-    $('razem').textContent = R.formatGodzin(o.wynik.suma) + ' h';
+    // Suma liczona z wierszy tabeli, nie przepisana z pola, więc sama sprawdza wynik.
+    $('razem').textContent = R.formatGodzin(R.sumaWpisow(wpisy)) + ' h';
     if (ponowne && tb.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       tb.animate([{ opacity: 0.4, filter: 'blur(2px)' }, { opacity: 1, filter: 'blur(0)' }],
         { duration: 200, easing: 'cubic-bezier(.23, 1, .32, 1)' });
@@ -460,7 +345,7 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
       linie.push([dwie(x.dzien) + '.' + dwie(o.mc) + '.' + o.rok, R.DNI_TYG[x.dzienTyg],
         R.formatCzasu(x.start), R.formatCzasu(x.koniec), R.formatGodzin(x.koniec - x.start)].join(';'));
     });
-    linie.push('Razem;;;;' + R.formatGodzin(o.wynik.suma));
+    linie.push('Razem;;;;' + R.formatGodzin(R.sumaWpisow(o.wynik.wpisy)));
     var blob = new Blob(['﻿' + linie.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

@@ -198,11 +198,36 @@
         var start = START + Math.floor(los() * (OKNO - dl[i] + 1));
         return { klucz: d.klucz, dzien: d.dzien, dzienTyg: d.dzienTyg, start: start, koniec: start + dl[i] };
       }).sort(function (a, b) { return a.dzien - b.dzien; });
+      // Strażnik: wynik, który łamie choć jedną zasadę, nigdy nie trafia do tabeli.
+      if (sprawdzWynik(rok, miesiac, U, wpisy).length) continue;
       wynik = wpisy;
       if (!wygladaRegularnie(wpisy)) break;
     }
 
+    if (!wynik) return { blad: 'Nie udało się rozdzielić godzin. Kliknij jeszcze raz.' };
     return { wpisy: wynik, suma: U, dniPracy: dni.length };
+  }
+
+  function sumaWpisow(wpisy) {
+    return wpisy.reduce(function (s, w) { return s + (w.koniec - w.start); }, 0);
+  }
+
+  // Niezależna kontrola wyniku: zwraca listę złamanych zasad (pusta = wszystko w porządku).
+  function sprawdzWynik(rok, miesiac, jednostki, wpisy) {
+    var bledy = [], dozwolone = {}, widziane = {};
+    dniPracy(rok, miesiac).forEach(function (d) { dozwolone[d.klucz] = true; });
+    wpisy.forEach(function (w) {
+      var dl = w.koniec - w.start;
+      if (!dozwolone[w.klucz]) bledy.push(w.klucz + ': niedziela, święto albo inny miesiąc');
+      if (widziane[w.klucz]) bledy.push(w.klucz + ': dzień powtórzony');
+      widziane[w.klucz] = true;
+      if (w.start < START || w.koniec > KONIEC) bledy.push(w.klucz + ': poza 8:00–22:00');
+      if (dl < MIN_DZIEN) bledy.push(w.klucz + ': mniej niż 4 h');
+      if (dl !== Math.round(dl)) bledy.push(w.klucz + ': czas nie jest wielokrotnością 30 min');
+    });
+    var suma = sumaWpisow(wpisy);
+    if (suma !== jednostki) bledy.push('suma ' + formatGodzin(suma) + ' h zamiast ' + formatGodzin(jednostki) + ' h');
+    return bledy;
   }
 
   function formatCzasu(j) {
@@ -219,6 +244,7 @@
     DNI_TYG: DNI_TYG, DNI_KROTKO: DNI_KROTKO, MIESIACE: MIESIACE,
     wielkanoc: wielkanoc, swieta: swieta, kalendarz: kalendarz, dniPracy: dniPracy,
     czytajGodziny: czytajGodziny, podziel: podziel, wygladaRegularnie: wygladaRegularnie,
-    rozdziel: rozdziel, formatCzasu: formatCzasu, formatGodzin: formatGodzin
+    rozdziel: rozdziel, sprawdzWynik: sprawdzWynik, sumaWpisow: sumaWpisow,
+    formatCzasu: formatCzasu, formatGodzin: formatGodzin
   };
 });
