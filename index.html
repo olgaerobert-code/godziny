@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rozkład godzin</title>
+<meta name="description" content="Wpisz liczbę godzin w miesiącu, a narzędzie rozłoży je na dni pracy.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F1F2F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131629" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%239E2A5E'/%3E%3Crect x='13' y='5' width='6' height='22' rx='3' fill='%23fff' opacity='.35'/%3E%3Crect x='13' y='10' width='6' height='11' rx='3' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --papier: #F1F2F5;
+  --karta: #FFFFFF;
+  --atrament: #1E2443;
+  --szary: #646A84;
+  --linia: #D6D9E3;
+  --akcent: #9E2A5E;
+  --akcent-tlo: #F6E1EA;
+  --wolne: #E6E8EE;
+  --blad: #B3261E;
+  --cien: 0 1px 2px rgba(30, 36, 67, .06), 0 8px 24px rgba(30, 36, 67, .06);
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier: #131629; --karta: #1C2038; --atrament: #E9EAF2; --szary: #9DA1B8;
+    --linia: #2F3452; --akcent: #E7709F; --akcent-tlo: #3E2034; --wolne: #181B30;
+    --blad: #FF8A80; --cien: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --papier: #131629; --karta: #1C2038; --atrament: #E9EAF2; --szary: #9DA1B8;
+  --linia: #2F3452; --akcent: #E7709F; --akcent-tlo: #3E2034; --wolne: #181B30;
+  --blad: #FF8A80; --cien: none; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--atrament);
+  font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: max(28px, env(safe-area-inset-top)) 16px max(40px, env(safe-area-inset-bottom));
+}
+
+h1 {
+  font-size: clamp(2.25rem, 9vw, 3.5rem);
+  font-variation-settings: "opsz" 96;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.03em;
+  margin: 0 0 .5rem;
+}
+.wstep { margin: 0 0 1.75rem; color: var(--szary); max-width: 46ch; }
+
+.karta {
+  background: var(--karta);
+  border: 1px solid var(--linia);
+  border-radius: 18px;
+  box-shadow: var(--cien);
+  padding: 20px;
+}
+
+/* Formularz */
+.pola { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+.pole { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pole.szerokie { grid-column: 1 / -1; }
+label { font-size: .875rem; font-weight: 600; }
+.opcja { font-weight: 400; color: var(--szary); }
+input, select {
+  font: inherit;
+  font-size: 16px; /* mniej nie wolno: iOS powiększa stronę przy wpisywaniu */
+  color: var(--atrament);
+  background: var(--papier);
+  border: 1px solid var(--linia);
+  border-radius: 10px;
+  padding: 11px 12px;
+  width: 100%;
+  min-height: 46px;
+}
+input:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 3px solid var(--akcent);
+  outline-offset: 2px;
+}
+#godziny { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; padding: 8px 12px; }
+#godziny[aria-invalid="true"] { border-color: var(--blad); }
+.podpowiedz { font-size: .875rem; color: var(--szary); margin: 0; }
+.komunikat { font-size: .9375rem; color: var(--blad); margin: 0; font-weight: 600; }
+.komunikat:empty { display: none; }
+
+button {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 0 20px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 160ms var(--ease-out), background-color 150ms ease;
+}
+button:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) {
+  .glowny:hover { background: color-mix(in srgb, var(--akcent) 88%, var(--atrament)); }
+  .drugi:hover { background: var(--karta); }
+}
+.glowny {
+  grid-column: 1 / -1;
+  background: var(--akcent);
+  color: #fff;
+  border: 0;
+  font-size: 1.0625rem;
+  margin-top: 4px;
+}
+:root[data-theme="dark"] .glowny { color: #1C0F16; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .glowny { color: #1C0F16; } }
+.drugi {
+  background: transparent;
+  color: var(--atrament);
+  border: 1px solid var(--linia);
+}
+
+/* Wynik */
+#wynik { margin-top: 2rem; }
+#wynik[hidden] { display: none; }
+.naglowek-wyniku { margin-bottom: 1rem; }
+.naglowek-wyniku h2 {
+  font-size: 1.75rem;
+  font-variation-settings: "opsz" 48;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+.naglowek-wyniku p { margin: .25rem 0 0; color: var(--szary); }
+.naglowek-wyniku strong { color: var(--atrament); font-variant-numeric: tabular-nums; }
+
+/* Kalendarz ze słupkami 8–22 */
+.kalendarz {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.dzien-tyg { font-size: .75rem; color: var(--szary); text-align: center; padding-bottom: 2px; }
+.dz {
+  border-radius: 8px;
+  min-height: 94px;
+  padding: 5px 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--karta);
+  border: 1px solid var(--linia);
+  font-variant-numeric: tabular-nums;
+}
+.dz .nr { font-size: .8125rem; line-height: 1; }
+.dz.wolne {
+  background: repeating-linear-gradient(135deg, var(--wolne) 0 5px, transparent 5px 9px);
+  border-color: transparent;
+  color: var(--szary);
+}
+.dz.swieto .nr { text-decoration: underline dotted; text-underline-offset: 3px; }
+.dz.praca { border-color: var(--akcent); background: var(--akcent-tlo); }
+.dz.praca .nr { font-weight: 700; }
+.tor {
+  position: relative;
+  width: 10px;
+  flex: 1;
+  min-height: 50px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--szary) 18%, transparent);
+  overflow: hidden;
+}
+.blok {
+  position: absolute;
+  left: 0; right: 0;
+  border-radius: 5px;
+  background: var(--akcent);
+  transform-origin: top;
+}
+.dz .h { font-size: .75rem; font-weight: 700; line-height: 1; color: var(--akcent); }
+.legenda { font-size: .8125rem; color: var(--szary); margin: .75rem 0 0; }
+
+/* Jedyny ruch na stronie: dni pracy „wypełniają się” od godziny startu, kaskadą po kalendarzu. */
+@media (prefers-reduced-motion: no-preference) {
+  .rosnie .blok { animation: odslon 280ms var(--ease-out) both; animation-delay: calc(var(--i) * 22ms); }
+  @keyframes odslon { from { clip-path: inset(0 0 100% 0 round 5px); } to { clip-path: inset(0 0 0 0 round 5px); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rosnie .blok { animation: pojaw 200ms ease both; }
+  @keyframes pojaw { from { opacity: 0; } }
+}
+
+/* Tabela */
+.tabela { margin-top: 1.25rem; padding: 4px 0; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 9px 16px; }
+th { font-size: .8125rem; font-weight: 600; color: var(--szary); }
+td + td, th + th { padding-left: 4px; }
+tbody tr { border-top: 1px solid var(--linia); }
+.liczba { text-align: right; }
+.dzien-kr { color: var(--szary); display: inline-block; min-width: 3.2em; }
+tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top: 11px; }
+
+.akcje { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 1.25rem; }
+.akcje button { flex: 1 1 140px; }
+
+.tylko-druk { display: none; }
+
+@media (max-width: 380px) {
+  .karta { padding: 16px; }
+  th, td { padding-left: 12px; padding-right: 12px; }
+}
+
+@media print {
+  @page { size: A4; margin: 16mm; }
+  :root { --atrament: #000; --szary: #444; --linia: #bbb; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+  main { max-width: none; padding: 0; }
+  h1, .wstep, form, .akcje, .kalendarz, .legenda { display: none !important; }
+  #wynik { margin: 0; }
+  .karta { border: 0; box-shadow: none; padding: 0; border-radius: 0; }
+  .tabela { margin-top: 8mm; }
+  th, td { padding: 5px 4px; }
+  .tylko-druk { display: block; }
+  .podpis { margin-top: 18mm; width: 70mm; border-top: 1px solid #000; padding-top: 2mm; font-size: 9pt; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Rozkład godzin</h1>
+  <p class="wstep">Wpisz, ile godzin masz w miesiącu. Rozłożę je na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
+
+  <form id="formularz" class="karta" novalidate>
+    <div class="pola">
+      <div class="pole">
+        <label for="miesiac">Miesiąc</label>
+        <select id="miesiac"></select>
+      </div>
+      <div class="pole">
+        <label for="rok">Rok</label>
+        <select id="rok"></select>
+      </div>
+      <div class="pole szerokie">
+        <label for="godziny">Liczba godzin</label>
+        <input id="godziny" type="text" inputmode="decimal" autocomplete="off" placeholder="np. 87 albo 37,5" aria-describedby="podpowiedz komunikat">
+        <p id="podpowiedz" class="podpowiedz"></p>
+        <p id="komunikat" class="komunikat" role="alert"></p>
+      </div>
+      <div class="pole szerokie">
+        <label for="imie">Imię i nazwisko <span class="opcja">(na wydruk, opcjonalnie)</span></label>
+        <input id="imie" type="text" autocomplete="name">
+      </div>
+      <button type="submit" class="glowny">Rozdziel godziny</button>
+    </div>
+  </form>
+
+  <section id="wynik" hidden aria-live="polite">
+    <div class="naglowek-wyniku">
+      <h2 id="tytul"></h2>
+      <p id="podsumowanie"></p>
+    </div>
+
+    <div class="kalendarz" id="kalendarz"></div>
+    <p class="legenda">Słupek to dzień od 8:00 (góra) do 22:00 (dół). Kreskowane pola to niedziele i święta.</p>
+
+    <div class="karta tabela">
+      <table>
+        <thead><tr><th>Dzień</th><th>Od</th><th>Do</th><th class="liczba">Godziny</th></tr></thead>
+        <tbody id="wiersze"></tbody>
+        <tfoot><tr><td colspan="3">Razem</td><td class="liczba" id="razem"></td></tr></tfoot>
+      </table>
+    </div>
+    <p class="tylko-druk podpis">Podpis</p>
+
+    <div class="akcje">
+      <button type="button" class="drugi" id="ponownie">Losuj ponownie</button>
+      <button type="button" class="drugi" id="drukuj">Drukuj / PDF</button>
+      <button type="button" class="drugi" id="excel">Pobierz do Excela</button>
+    </div>
+  </section>
+</main>
+
+<script src="logika.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.Rozklad;
+  var $ = function (id) { return document.getElementById(id); };
+  var DNI_NAGL = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'nd.'];
+  var ostatni = null;
+
+  function wielka(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function pamietaj(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function przypomnij(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function dniSlowo(n) { return n === 1 ? 'dzień' : 'dni'; }
+  function dwie(n) { return (n < 10 ? '0' : '') + n; }
+
+  // Wybór miesiąca i roku
+  var teraz = new Date();
+  R.MIESIACE.forEach(function (m, i) {
+    var o = document.createElement('option');
+    o.value = i + 1; o.textContent = wielka(m);
+    $('miesiac').appendChild(o);
+  });
+  for (var r = teraz.getFullYear() - 1; r <= teraz.getFullYear() + 1; r++) {
+    var o = document.createElement('option');
+    o.value = r; o.textContent = r;
+    $('rok').appendChild(o);
+  }
+  $('miesiac').value = teraz.getMonth() + 1;
+  $('rok').value = teraz.getFullYear();
+  $('imie').value = przypomnij('rozklad-imie');
+
+  function wybrany() { return { rok: +$('rok').value, mc: +$('miesiac').value }; }
+
+  function podpowiedz() {
+    var w = wybrany(), n = R.dniPracy(w.rok, w.mc).length;
+    $('podpowiedz').textContent = wielka(R.MIESIACE[w.mc - 1]) + ' ' + w.rok + ': ' + n + ' ' + dniSlowo(n) +
+      ' pracy, czyli od 4 do ' + R.formatGodzin(n * R.OKNO) + ' godzin.';
+  }
+  $('miesiac').addEventListener('change', podpowiedz);
+  $('rok').addEventListener('change', podpowiedz);
+  window.addEventListener('pageshow', podpowiedz);
+  podpowiedz();
+
+  function pokazBlad(tekst) {
+    $('komunikat').textContent = tekst;
+    $('godziny').setAttribute('aria-invalid', 'true');
+    $('wynik').hidden = true;
+  }
+
+  function licz() {
+    podpowiedz();
+    var w = wybrany();
+    var wynik = R.rozdziel(w.rok, w.mc, $('godziny').value);
+    if (wynik.blad) { pokazBlad(wynik.blad); $('godziny').focus(); return; }
+    $('komunikat').textContent = '';
+    $('godziny').removeAttribute('aria-invalid');
+    var imie = $('imie').value.trim();
+    pamietaj('rozklad-imie', imie);
+    ostatni = { rok: w.rok, mc: w.mc, imie: imie, wynik: wynik };
+    pokaz();
+  }
+
+  function pokaz(ponowne) {
+    var o = ostatni, wpisy = o.wynik.wpisy;
+    var poDniu = {};
+    wpisy.forEach(function (x) { poDniu[x.klucz] = x; });
+
+    $('tytul').textContent = wielka(R.MIESIACE[o.mc - 1]) + ' ' + o.rok + (o.imie ? ', ' + o.imie : '');
+    $('podsumowanie').innerHTML = '';
+    var s = document.createElement('strong');
+    s.textContent = R.formatGodzin(o.wynik.suma) + ' h';
+    $('podsumowanie').append(s, ' w ' + wpisy.length + (wpisy.length === 1 ? ' dniu' : ' dniach') + ' pracy');
+
+    // Kalendarz
+    var kal = $('kalendarz');
+    kal.innerHTML = '';
+    kal.classList.remove('rosnie');
+    DNI_NAGL.forEach(function (d) {
+      var el = document.createElement('div');
+      el.className = 'dzien-tyg'; el.textContent = d;
+      kal.appendChild(el);
+    });
+    var dni = R.kalendarz(o.rok, o.mc);
+    for (var i = 0; i < (dni[0].dzienTyg + 6) % 7; i++) kal.appendChild(document.createElement('div'));
+    var kolejny = 0;
+    dni.forEach(function (d) {
+      var el = document.createElement('div');
+      var x = poDniu[d.klucz];
+      var nr = document.createElement('span');
+      nr.className = 'nr'; nr.textContent = d.dzien;
+      el.appendChild(nr);
+      if (d.wolne) {
+        el.className = 'dz wolne' + (d.powod !== 'niedziela' ? ' swieto' : '');
+        el.title = wielka(d.powod);
+      } else if (x) {
+        var dl = x.koniec - x.start;
+        el.className = 'dz praca';
+        el.title = R.formatCzasu(x.start) + '–' + R.formatCzasu(x.koniec);
+        var tor = document.createElement('div');
+        tor.className = 'tor';
+        var blok = document.createElement('div');
+        blok.className = 'blok';
+        blok.style.top = ((x.start - R.START) / R.OKNO * 100) + '%';
+        blok.style.height = (dl / R.OKNO * 100) + '%';
+        blok.style.setProperty('--i', kolejny++);
+        tor.appendChild(blok);
+        var h = document.createElement('span');
+        h.className = 'h'; h.textContent = R.formatGodzin(dl);
+        el.append(tor, h);
+      } else {
+        el.className = 'dz';
+      }
+      kal.appendChild(el);
+    });
+    void kal.offsetWidth;
+    kal.classList.add('rosnie');
+
+    // Tabela
+    var tb = $('wiersze');
+    tb.innerHTML = '';
+    wpisy.forEach(function (x) {
+      var tr = document.createElement('tr');
+      var dzien = document.createElement('td');
+      var kr = document.createElement('span');
+      kr.className = 'dzien-kr'; kr.textContent = R.DNI_KROTKO[x.dzienTyg];
+      dzien.append(kr, dwie(x.dzien) + '.' + dwie(o.mc));
+      tr.appendChild(dzien);
+      [R.formatCzasu(x.start), R.formatCzasu(x.koniec), R.formatGodzin(x.koniec - x.start)].forEach(function (t, j) {
+        var td = document.createElement('td');
+        td.textContent = t;
+        if (j === 2) td.className = 'liczba';
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    $('razem').textContent = R.formatGodzin(o.wynik.suma) + ' h';
+    if (ponowne && tb.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      tb.animate([{ opacity: 0.4, filter: 'blur(2px)' }, { opacity: 1, filter: 'blur(0)' }],
+        { duration: 200, easing: 'cubic-bezier(.23, 1, .32, 1)' });
+    }
+
+    var sekcja = $('wynik');
+    var bylUkryty = sekcja.hidden;
+    sekcja.hidden = false;
+    if (bylUkryty) sekcja.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  function nazwaPliku() {
+    var o = ostatni;
+    var imie = o.imie ? ' ' + o.imie.replace(/[\\/:*?"<>|]/g, '') : '';
+    return 'Godziny ' + o.rok + '-' + dwie(o.mc) + imie;
+  }
+
+  function excel() {
+    var o = ostatni;
+    var linie = [];
+    if (o.imie) linie.push('Pracownik;' + o.imie.replace(/;/g, ','));
+    linie.push('Miesiąc;' + R.MIESIACE[o.mc - 1] + ' ' + o.rok, '');
+    linie.push('Data;Dzień tygodnia;Od;Do;Godziny');
+    o.wynik.wpisy.forEach(function (x) {
+      linie.push([dwie(x.dzien) + '.' + dwie(o.mc) + '.' + o.rok, R.DNI_TYG[x.dzienTyg],
+        R.formatCzasu(x.start), R.formatCzasu(x.koniec), R.formatGodzin(x.koniec - x.start)].join(';'));
+    });
+    linie.push('Razem;;;;' + R.formatGodzin(o.wynik.suma));
+    var blob = new Blob(['﻿' + linie.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nazwaPliku() + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  function drukuj() {
+    var tytul = document.title;
+    document.title = nazwaPliku();
+    window.print();
+    setTimeout(function () { document.title = tytul; }, 500);
+  }
+
+  $('formularz').addEventListener('submit', function (e) { e.preventDefault(); licz(); });
+  $('ponownie').addEventListener('click', function () {
+    if (!ostatni) return;
+    ostatni.wynik = R.rozdziel(ostatni.rok, ostatni.mc, ostatni.wynik.suma / 2);
+    pokaz(true);
+  });
+  $('drukuj').addEventListener('click', drukuj);
+  $('excel').addEventListener('click', excel);
+})();
+</script>
+</body>
+</html>
