@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Rozkład godzin</title>
-<meta name="description" content="Wpisz liczbę godzin w miesiącu, a narzędzie rozłoży je na dni pracy.">
+<title>Ewidencja godzin</title>
+<meta name="description" content="Wpisz liczbę godzin w miesiącu, a narzędzie przygotuje ewidencję czasu do wydruku.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#F1F2F5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#131629" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%239E2A5E'/%3E%3Crect x='13' y='5' width='6' height='22' rx='3' fill='%23fff' opacity='.35'/%3E%3Crect x='13' y='10' width='6' height='11' rx='3' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Tinos:ital,wght@0,400;1,700&display=swap" rel="stylesheet">
 <style>
 :root {
   --papier: #F1F2F5;
@@ -20,24 +20,23 @@
   --szary: #646A84;
   --linia: #D6D9E3;
   --akcent: #9E2A5E;
-  --akcent-tlo: #F6E1EA;
-  --wolne: #E6E8EE;
   --blad: #B3261E;
   --cien: 0 1px 2px rgba(30, 36, 67, .06), 0 8px 24px rgba(30, 36, 67, .06);
+  --cien-kartki: 0 1px 3px rgba(30, 36, 67, .12), 0 12px 32px rgba(30, 36, 67, .10);
   --ease-out: cubic-bezier(.23, 1, .32, 1);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --papier: #131629; --karta: #1C2038; --atrament: #E9EAF2; --szary: #9DA1B8;
-    --linia: #2F3452; --akcent: #E7709F; --akcent-tlo: #3E2034; --wolne: #181B30;
-    --blad: #FF8A80; --cien: none; color-scheme: dark;
+    --linia: #2F3452; --akcent: #E7709F; --blad: #FF8A80; --cien: none;
+    --cien-kartki: 0 0 0 1px #2F3452; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --papier: #131629; --karta: #1C2038; --atrament: #E9EAF2; --szary: #9DA1B8;
-  --linia: #2F3452; --akcent: #E7709F; --akcent-tlo: #3E2034; --wolne: #181B30;
-  --blad: #FF8A80; --cien: none; color-scheme: dark;
+  --linia: #2F3452; --akcent: #E7709F; --blad: #FF8A80; --cien: none;
+  --cien-kartki: 0 0 0 1px #2F3452; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -80,7 +79,6 @@ h1 {
 .pole { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .pole.szerokie { grid-column: 1 / -1; }
 label { font-size: .875rem; font-weight: 600; }
-.opcja { font-weight: 400; color: var(--szary); }
 input, select {
   font: inherit;
   font-size: 16px; /* mniej nie wolno: iOS powiększa stronę przy wpisywaniu */
@@ -135,58 +133,92 @@ button:active { transform: scale(.97); }
   border: 1px solid var(--linia);
 }
 
-/* Wynik */
 #wynik { margin-top: 2rem; }
 #wynik[hidden] { display: none; }
-.naglowek-wyniku { margin-bottom: 1rem; }
-.naglowek-wyniku h2 {
-  font-size: 1.75rem;
-  font-variation-settings: "opsz" 48;
-  letter-spacing: -.02em;
-  line-height: 1.1;
-  margin: 0;
+.akcje { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 1rem; }
+.akcje button { flex: 1 1 160px; }
+
+/* Dokument A4 — układ odmierzony ze wzoru (Arkusz1.pdf). 1cqw = 2,1 mm na wydruku. */
+.ramka { container-type: inline-size; }
+.arkusz {
+  aspect-ratio: 210 / 297;
+  background: #fff;
+  color: #000;
+  box-shadow: var(--cien-kartki);
+  border-radius: 3px;
+  padding: 8cqw 6.5cqw 0;
+  font-family: "Tinos", "Times New Roman", Times, serif;
+  overflow: hidden;
 }
-
-/* Tabela */
-.tabela { margin-top: 1.25rem; padding: 4px 0; overflow: hidden; }
-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 9px 16px; }
-th { font-size: .8125rem; font-weight: 600; color: var(--szary); }
-td + td, th + th { padding-left: 4px; }
-tbody tr { border-top: 1px solid var(--linia); }
-.liczba { text-align: right; }
-.dzien-kr { color: var(--szary); display: inline-block; min-width: 3.2em; }
-tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top: 11px; }
-
-.akcje { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 1.25rem; }
-.akcje button { flex: 1 1 140px; }
-
-.tylko-druk { display: none; }
+.arkusz table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  --kreska: max(1px, .09cqw) solid #000;
+}
+.arkusz th, .arkusz td { border: var(--kreska); padding: 0; }
+.arkusz .tytul {
+  height: 7cqw;
+  vertical-align: bottom;
+  padding-bottom: .8cqw;
+  text-align: center;
+  font-size: 1.95cqw;
+  font-style: italic;
+  font-weight: 700;
+}
+.arkusz .osoba {
+  height: 4.3cqw;
+  vertical-align: bottom;
+  padding: 0 0 .25cqw .2cqw;
+  text-align: left;
+  font-size: 1.65cqw;
+  font-style: italic;
+  font-weight: 700;
+}
+.arkusz .kolumny th {
+  height: 5.7cqw;
+  font-size: 1.6cqw;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  vertical-align: middle;
+}
+.arkusz tbody td {
+  height: 3.43cqw;
+  font-size: 1.75cqw;
+  text-align: center;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+.arkusz tbody td.suma { font-weight: 700; }
 
 @media (max-width: 380px) {
   .karta { padding: 16px; }
-  th, td { padding-left: 12px; padding-right: 12px; }
 }
 
 @media print {
-  @page { size: A4; margin: 16mm; }
-  :root { --atrament: #000; --szary: #444; --linia: #bbb; }
-  body { background: #fff; color: #000; font-size: 11pt; }
-  main { max-width: none; padding: 0; }
+  @page { size: A4; margin: 0; } /* margines 0 wyłącza nagłówek i stopkę przeglądarki */
+  html, body { background: #fff; }
+  main { max-width: none; padding: 0; margin: 0; }
   h1, .wstep, form, .akcje { display: none !important; }
   #wynik { margin: 0; }
-  .karta { border: 0; box-shadow: none; padding: 0; border-radius: 0; }
-  .tabela { margin-top: 8mm; }
-  th, td { padding: 5px 4px; }
-  .tylko-druk { display: block; }
-  .podpis { margin-top: 18mm; width: 70mm; border-top: 1px solid #000; padding-top: 2mm; font-size: 9pt; }
+  .ramka { width: 210mm; }
+  .arkusz {
+    width: 210mm;
+    height: 296mm; /* milimetr zapasu, żeby nie powstała pusta druga strona */
+    aspect-ratio: auto;
+    box-shadow: none;
+    border-radius: 0;
+    break-inside: avoid;
+  }
 }
 </style>
 </head>
 <body>
 <main>
-  <h1>Rozkład godzin</h1>
-  <p class="wstep">Wpisz, ile godzin masz w miesiącu. Rozłożę je na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
+  <h1>Ewidencja godzin</h1>
+  <p class="wstep">Wpisz, ile godzin masz w miesiącu. Przygotuję ewidencję czasu do wydruku: godziny rozłożę na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
 
   <form id="formularz" class="karta" novalidate>
     <div class="pola">
@@ -204,32 +236,34 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
         <p id="podpowiedz" class="podpowiedz"></p>
         <p id="komunikat" class="komunikat" role="alert"></p>
       </div>
-      <div class="pole szerokie">
-        <label for="imie">Imię i nazwisko <span class="opcja">(na wydruk, opcjonalnie)</span></label>
-        <input id="imie" type="text" autocomplete="name">
-      </div>
-      <button type="submit" class="glowny">Rozdziel godziny</button>
+      <button type="submit" class="glowny">Utwórz ewidencję</button>
     </div>
   </form>
 
-  <section id="wynik" hidden aria-live="polite">
-    <div class="naglowek-wyniku">
-      <h2 id="tytul"></h2>
-    </div>
-
-    <div class="karta tabela">
-      <table>
-        <thead><tr><th>Dzień</th><th>Od</th><th>Do</th><th class="liczba">Godziny</th></tr></thead>
-        <tbody id="wiersze"></tbody>
-        <tfoot><tr><td colspan="3">Razem</td><td class="liczba" id="razem"></td></tr></tfoot>
-      </table>
-    </div>
-    <p class="tylko-druk podpis">Podpis</p>
-
+  <section id="wynik" hidden aria-label="Ewidencja do wydruku">
     <div class="akcje">
-      <button type="button" class="drugi" id="ponownie">Losuj ponownie</button>
       <button type="button" class="drugi" id="drukuj">Drukuj / PDF</button>
-      <button type="button" class="drugi" id="excel">Pobierz do Excela</button>
+      <button type="button" class="drugi" id="ponownie">Losuj ponownie</button>
+    </div>
+
+    <div class="ramka">
+      <div class="arkusz">
+        <table>
+          <colgroup>
+            <col style="width:12%"><col style="width:14.7%"><col style="width:13.9%">
+            <col style="width:22.5%"><col style="width:18.6%"><col style="width:18.3%">
+          </colgroup>
+          <thead>
+            <tr><th colspan="6" class="tytul">EWIDENCJA CZASU ZLECENIOBIORCY</th></tr>
+            <tr><th colspan="6" class="osoba">IMIĘ I NAZWISKO ZLECENIOBIORCY:</th></tr>
+            <tr class="kolumny">
+              <th>DATA</th><th>OD GODZINY</th><th>DO GODZINY</th>
+              <th>ILOŚĆ GODZIN<br>PRZEPRACOWANYCH</th><th>PODPIS<br>ZLECENIOBIORCY</th><th>PODPIS<br>ZLECENIODAWCY</th>
+            </tr>
+          </thead>
+          <tbody id="wiersze"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 </main>
@@ -240,11 +274,10 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
   'use strict';
   var R = window.Rozklad;
   var $ = function (id) { return document.getElementById(id); };
+  var WIERSZY = 31; // tyle wierszy ma wzór, niezależnie od liczby dni pracy
   var ostatni = null;
 
   function wielka(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-  function pamietaj(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-  function przypomnij(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
   function dniSlowo(n) { return n === 1 ? 'dzień' : 'dni'; }
   function dwie(n) { return (n < 10 ? '0' : '') + n; }
 
@@ -262,7 +295,6 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
   }
   $('miesiac').value = teraz.getMonth() + 1;
   $('rok').value = teraz.getFullYear();
-  $('imie').value = przypomnij('rozklad-imie');
 
   function wybrany() { return { rok: +$('rok').value, mc: +$('miesiac').value }; }
 
@@ -289,37 +321,35 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
     if (wynik.blad) { pokazBlad(wynik.blad); $('godziny').focus(); return; }
     $('komunikat').textContent = '';
     $('godziny').removeAttribute('aria-invalid');
-    var imie = $('imie').value.trim();
-    pamietaj('rozklad-imie', imie);
-    ostatni = { rok: w.rok, mc: w.mc, imie: imie, wynik: wynik };
+    ostatni = { rok: w.rok, mc: w.mc, wynik: wynik };
     pokaz();
+  }
+
+  function komorka(tr, tekst) {
+    var td = document.createElement('td');
+    td.textContent = tekst || '';
+    tr.appendChild(td);
   }
 
   function pokaz(ponowne) {
     var o = ostatni, wpisy = o.wynik.wpisy;
-
-    $('tytul').textContent = wielka(R.MIESIACE[o.mc - 1]) + ' ' + o.rok + (o.imie ? ', ' + o.imie : '');
     var tb = $('wiersze');
+    var wierszSumy = wpisy.length + 1; // jeden pusty wiersz odstępu pod ostatnim dniem
     tb.innerHTML = '';
-    wpisy.forEach(function (x) {
-      var tr = document.createElement('tr');
-      var dzien = document.createElement('td');
-      var kr = document.createElement('span');
-      kr.className = 'dzien-kr'; kr.textContent = R.DNI_KROTKO[x.dzienTyg];
-      dzien.append(kr, dwie(x.dzien) + '.' + dwie(o.mc));
-      tr.appendChild(dzien);
-      [R.formatCzasu(x.start), R.formatCzasu(x.koniec), R.formatGodzin(x.koniec - x.start)].forEach(function (t, j) {
-        var td = document.createElement('td');
-        td.textContent = t;
-        if (j === 2) td.className = 'liczba';
-        tr.appendChild(td);
-      });
+    for (var i = 0; i < WIERSZY; i++) {
+      var x = wpisy[i], tr = document.createElement('tr');
+      komorka(tr, x && dwie(x.dzien) + '.' + dwie(o.mc) + '.' + o.rok);
+      komorka(tr, x && R.formatCzasu(x.start));
+      komorka(tr, x && R.formatCzasu(x.koniec));
+      // Suma liczona z wierszy, nie przepisana z pola, więc sama sprawdza wynik.
+      komorka(tr, x ? R.formatGodzin(x.koniec - x.start) : i === wierszSumy ? R.formatGodzin(R.sumaWpisow(wpisy)) : '');
+      if (i === wierszSumy) tr.lastChild.className = 'suma';
+      komorka(tr, ''); // podpis zleceniobiorcy
+      komorka(tr, ''); // podpis zleceniodawcy
       tb.appendChild(tr);
-    });
-    // Suma liczona z wierszy tabeli, nie przepisana z pola, więc sama sprawdza wynik.
-    $('razem').textContent = R.formatGodzin(R.sumaWpisow(wpisy)) + ' h';
+    }
     if (ponowne && tb.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      tb.animate([{ opacity: 0.4, filter: 'blur(2px)' }, { opacity: 1, filter: 'blur(0)' }],
+      tb.animate([{ opacity: 0.4, filter: 'blur(1.5px)' }, { opacity: 1, filter: 'blur(0)' }],
         { duration: 200, easing: 'cubic-bezier(.23, 1, .32, 1)' });
     }
 
@@ -329,35 +359,9 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
     if (bylUkryty) sekcja.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }
 
-  function nazwaPliku() {
-    var o = ostatni;
-    var imie = o.imie ? ' ' + o.imie.replace(/[\\/:*?"<>|]/g, '') : '';
-    return 'Godziny ' + o.rok + '-' + dwie(o.mc) + imie;
-  }
-
-  function excel() {
-    var o = ostatni;
-    var linie = [];
-    if (o.imie) linie.push('Pracownik;' + o.imie.replace(/;/g, ','));
-    linie.push('Miesiąc;' + R.MIESIACE[o.mc - 1] + ' ' + o.rok, '');
-    linie.push('Data;Dzień tygodnia;Od;Do;Godziny');
-    o.wynik.wpisy.forEach(function (x) {
-      linie.push([dwie(x.dzien) + '.' + dwie(o.mc) + '.' + o.rok, R.DNI_TYG[x.dzienTyg],
-        R.formatCzasu(x.start), R.formatCzasu(x.koniec), R.formatGodzin(x.koniec - x.start)].join(';'));
-    });
-    linie.push('Razem;;;;' + R.formatGodzin(R.sumaWpisow(o.wynik.wpisy)));
-    var blob = new Blob(['﻿' + linie.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = nazwaPliku() + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  }
-
   function drukuj() {
     var tytul = document.title;
-    document.title = nazwaPliku();
+    document.title = 'Ewidencja ' + ostatni.rok + '-' + dwie(ostatni.mc); // nazwa pliku PDF
     window.print();
     setTimeout(function () { document.title = tytul; }, 500);
   }
@@ -369,7 +373,6 @@ tfoot td { border-top: 2px solid var(--atrament); font-weight: 700; padding-top:
     pokaz(true);
   });
   $('drukuj').addEventListener('click', drukuj);
-  $('excel').addEventListener('click', excel);
 })();
 </script>
 </body>
