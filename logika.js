@@ -10,6 +10,7 @@
   var KONIEC = 22 * 2;        // 22:00
   var OKNO = KONIEC - START;  // 28 jednostek = 14 h
   var MIN_DZIEN = 4 * 2;      // 4 h
+  var MAKS_10H = 10 * 2;      // opcja „maksymalnie 10 h dziennie”
   var PROBY = 100;
 
   var DNI_TYG = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
@@ -105,23 +106,42 @@
     return -1;
   }
 
-  // Dzieli `jednostki` na `n` dni po 8–28 półgodzin. Losowe wagi (rozkład wykładniczy)
-  // dają mocny rozrzut długości zamiast prawie równych dni.
-  function podziel(jednostki, n, los) {
+  // Opcje użytkownika -> parametry liczenia. Wszystko w półgodzinach;
+  // `krok` to najmniejsza zmiana: 1 (30 min) albo 2 (pełna godzina, opcja „bez połówek”).
+  function ustawienia(opcje) {
+    opcje = opcje || {};
+    return {
+      maks: opcje.maks10h ? MAKS_10H : OKNO,
+      krok: opcje.bezPolowek ? 2 : 1,
+      maks10h: !!opcje.maks10h,
+      bezPolowek: !!opcje.bezPolowek
+    };
+  }
+
+  // Najwięcej godzin (w półgodzinach), które zmieszczą się w miesiącu przy danych opcjach.
+  function maksMiesiac(rok, miesiac, opcje) {
+    return dniPracy(rok, miesiac).length * ustawienia(opcje).maks;
+  }
+
+  // Dzieli `jednostki` na `n` dni po min–maks jednostek (domyślnie 8–28 półgodzin).
+  // Losowe wagi (rozkład wykładniczy) dają mocny rozrzut długości zamiast prawie równych dni.
+  function podziel(jednostki, n, los, min, maks) {
+    min = min || MIN_DZIEN;
+    maks = maks || OKNO;
     var dl = [], wagi = [], wolne = [], i;
     for (i = 0; i < n; i++) {
-      dl.push(MIN_DZIEN);
+      dl.push(min);
       wagi.push(-Math.log(1 - los()) + 0.35);
       wolne.push(true);
     }
-    var reszta = jednostki - MIN_DZIEN * n;
+    var reszta = jednostki - min * n;
     while (reszta > 0) {
-      // Przydział proporcjonalny do wag, z limitem 14 h na dzień; nadwyżka idzie w kolejnej rundzie.
+      // Przydział proporcjonalny do wag, z dziennym limitem; nadwyżka idzie w kolejnej rundzie.
       var sumaW = 0, dane = 0;
       for (i = 0; i < n; i++) if (wolne[i]) sumaW += wagi[i];
       for (i = 0; i < n; i++) {
         if (!wolne[i]) continue;
-        var ile = Math.min(OKNO - dl[i], Math.floor(reszta * wagi[i] / sumaW), reszta - dane);
+        var ile = Math.min(maks - dl[i], Math.floor(reszta * wagi[i] / sumaW), reszta - dane);
         dl[i] += ile;
         dane += ile;
       }
@@ -130,7 +150,7 @@
         dl[i]++;
         dane = 1;
       }
-      for (i = 0; i < n; i++) if (dl[i] >= OKNO) wolne[i] = false;
+      for (i = 0; i < n; i++) if (dl[i] >= maks) wolne[i] = false;
       reszta -= dane;
     }
     return dl;
@@ -171,41 +191,48 @@
   }
 
   // Główna funkcja. miesiac: 1–12, godziny: liczba lub tekst ("37,5").
-  function rozdziel(rok, miesiac, godziny, los) {
+  // opcje: { maks10h: true/false, bezPolowek: true/false } — można pominąć.
+  function rozdziel(rok, miesiac, godziny, opcje, los) {
+    if (typeof opcje === 'function') { los = opcje; opcje = null; }
     los = los || losowaKryptograficzna;
+    var u = ustawienia(opcje);
     var g = typeof godziny === 'number' ? { jednostki: Math.round(godziny * 2) } : czytajGodziny(godziny);
     if (g.blad) return { blad: g.blad };
     var U = g.jednostki;
     var dni = dniPracy(rok, miesiac);
-    var maks = dni.length * OKNO;
+    var maks = dni.length * u.maks;
 
+    if (u.bezPolowek && U % 2) return { blad: 'Zaznaczona jest opcja „bez połówek”, więc wpisz pełne godziny, np. 87.' };
     if (U < MIN_DZIEN) return { blad: 'Wpisz co najmniej 4 h. Tyle trwa najkrótszy dzień pracy.' };
     if (U > maks) {
       return { blad: 'W tym miesiącu jest ' + dni.length + ' dni pracy, więc zmieści się najwyżej ' +
-        formatGodzin(maks) + ' h (14 h dziennie).' };
+        formatGodzin(maks) + ' h (' + formatGodzin(u.maks) + ' h dziennie).' };
     }
 
-    var minN = Math.ceil(U / OKNO);
-    var maxN = Math.min(Math.floor(U / MIN_DZIEN), dni.length);
+    // Liczymy w krokach (30 min albo 1 h), potem wracamy do półgodzin.
+    var k = u.krok;
+    var Uk = U / k, minK = MIN_DZIEN / k, maksK = u.maks / k, oknoK = OKNO / k;
+    var minN = Math.ceil(Uk / maksK);
+    var maxN = Math.min(Math.floor(Uk / minK), dni.length);
     var wynik = null;
 
     for (var proba = 0; proba < PROBY; proba++) {
-      var srednia = 10 + los() * 10; // 5–10 h na dzień, losowane za każdym razem
-      var n = Math.max(minN, Math.min(maxN, Math.round(U / srednia)));
-      var dl = podziel(U, n, los);
+      var srednia = (10 + los() * 10) / k; // 5–10 h na dzień, losowane za każdym razem
+      var n = Math.max(minN, Math.min(maxN, Math.round(Uk / srednia)));
+      var dl = podziel(Uk, n, los, minK, maksK);
       var wybrane = tasuj(dni, los).slice(0, n);
       var wpisy = wybrane.map(function (d, i) {
-        var start = START + Math.floor(los() * (OKNO - dl[i] + 1));
-        return { klucz: d.klucz, dzien: d.dzien, dzienTyg: d.dzienTyg, start: start, koniec: start + dl[i] };
+        var start = START + k * Math.floor(los() * (oknoK - dl[i] + 1));
+        return { klucz: d.klucz, dzien: d.dzien, dzienTyg: d.dzienTyg, start: start, koniec: start + k * dl[i] };
       }).sort(function (a, b) { return a.dzien - b.dzien; });
       // Strażnik: wynik, który łamie choć jedną zasadę, nigdy nie trafia do tabeli.
-      if (sprawdzWynik(rok, miesiac, U, wpisy).length) continue;
+      if (sprawdzWynik(rok, miesiac, U, wpisy, opcje).length) continue;
       wynik = wpisy;
       if (!wygladaRegularnie(wpisy)) break;
     }
 
     if (!wynik) return { blad: 'Nie udało się rozdzielić godzin. Kliknij jeszcze raz.' };
-    return { wpisy: wynik, suma: U, dniPracy: dni.length };
+    return { wpisy: wynik, suma: U, dniPracy: dni.length, opcje: { maks10h: u.maks10h, bezPolowek: u.bezPolowek } };
   }
 
   function sumaWpisow(wpisy) {
@@ -213,7 +240,8 @@
   }
 
   // Niezależna kontrola wyniku: zwraca listę złamanych zasad (pusta = wszystko w porządku).
-  function sprawdzWynik(rok, miesiac, jednostki, wpisy) {
+  function sprawdzWynik(rok, miesiac, jednostki, wpisy, opcje) {
+    var u = ustawienia(opcje);
     var bledy = [], dozwolone = {}, widziane = {};
     dniPracy(rok, miesiac).forEach(function (d) { dozwolone[d.klucz] = true; });
     wpisy.forEach(function (w) {
@@ -224,6 +252,8 @@
       if (w.start < START || w.koniec > KONIEC) bledy.push(w.klucz + ': poza 8:00–22:00');
       if (dl < MIN_DZIEN) bledy.push(w.klucz + ': mniej niż 4 h');
       if (dl !== Math.round(dl)) bledy.push(w.klucz + ': czas nie jest wielokrotnością 30 min');
+      if (dl > u.maks) bledy.push(w.klucz + ': więcej niż ' + formatGodzin(u.maks) + ' h');
+      if (u.bezPolowek && (w.start % 2 || w.koniec % 2)) bledy.push(w.klucz + ': godzina z połówką');
     });
     var suma = sumaWpisow(wpisy);
     if (suma !== jednostki) bledy.push('suma ' + formatGodzin(suma) + ' h zamiast ' + formatGodzin(jednostki) + ' h');
@@ -240,10 +270,10 @@
   }
 
   return {
-    START: START, KONIEC: KONIEC, OKNO: OKNO, MIN_DZIEN: MIN_DZIEN,
+    START: START, KONIEC: KONIEC, OKNO: OKNO, MIN_DZIEN: MIN_DZIEN, MAKS_10H: MAKS_10H,
     DNI_TYG: DNI_TYG, DNI_KROTKO: DNI_KROTKO, MIESIACE: MIESIACE,
     wielkanoc: wielkanoc, swieta: swieta, kalendarz: kalendarz, dniPracy: dniPracy,
-    czytajGodziny: czytajGodziny, podziel: podziel, wygladaRegularnie: wygladaRegularnie,
+    czytajGodziny: czytajGodziny, ustawienia: ustawienia, maksMiesiac: maksMiesiac, podziel: podziel, wygladaRegularnie: wygladaRegularnie,
     rozdziel: rozdziel, sprawdzWynik: sprawdzWynik, sumaWpisow: sumaWpisow,
     formatCzasu: formatCzasu, formatGodzin: formatGodzin
   };

@@ -100,6 +100,39 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 .komunikat { font-size: .9375rem; color: var(--blad); margin: 0; font-weight: 600; }
 .komunikat:empty { display: none; }
 
+/* Opcje (pola wyboru) */
+.opcje { grid-column: 1 / -1; border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.opcje legend { font-size: .875rem; font-weight: 600; padding: 0; margin-bottom: 6px; }
+.opcja {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
+  background: var(--papier);
+  border: 1px solid var(--linia);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.opcja input {
+  appearance: auto;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  accent-color: var(--akcent);
+  cursor: pointer;
+}
+.opcja:has(input:checked) { border-color: var(--akcent); }
+.opcja:has(input:focus-visible) { outline: 3px solid var(--akcent); outline-offset: 2px; }
+.opcja input:focus-visible { outline: none; }
+
 button {
   font: inherit;
   font-weight: 600;
@@ -236,6 +269,11 @@ button:active { transform: scale(.97); }
         <p id="podpowiedz" class="podpowiedz"></p>
         <p id="komunikat" class="komunikat" role="alert"></p>
       </div>
+      <fieldset class="opcje">
+        <legend>Opcje</legend>
+        <label class="opcja"><input type="checkbox" id="maks10h"> Maksymalnie 10 h w dniu</label>
+        <label class="opcja"><input type="checkbox" id="bezPolowek"> Bez połówek (tylko pełne godziny)</label>
+      </fieldset>
       <button type="submit" class="glowny">Utwórz ewidencję</button>
     </div>
   </form>
@@ -269,7 +307,7 @@ button:active { transform: scale(.97); }
 </main>
 
 <!-- Przy każdej zmianie logika.js podbij ?v=, inaczej przeglądarka (pamięć 10 min) poda starą wersję. -->
-<script src="logika.js?v=3"></script>
+<script src="logika.js?v=4"></script>
 <script>
 (function () {
   'use strict';
@@ -302,15 +340,23 @@ button:active { transform: scale(.97); }
   $('miesiac').value = teraz.getMonth() + 1;
   $('rok').value = teraz.getFullYear();
 
-  function wybrany() { return { rok: +$('rok').value, mc: +$('miesiac').value }; }
+  function wybrany() {
+    return {
+      rok: +$('rok').value, mc: +$('miesiac').value,
+      opcje: { maks10h: $('maks10h').checked, bezPolowek: $('bezPolowek').checked }
+    };
+  }
 
   function podpowiedz() {
     var w = wybrany(), n = R.dniPracy(w.rok, w.mc).length;
     $('podpowiedz').textContent = wielka(R.MIESIACE[w.mc - 1]) + ' ' + w.rok + ': ' + n + ' ' + dniSlowo(n) +
-      ' pracy, czyli od 4 do ' + R.formatGodzin(n * R.OKNO) + ' godzin.';
+      ' pracy, czyli od 4 do ' + R.formatGodzin(R.maksMiesiac(w.rok, w.mc, w.opcje)) + ' godzin' +
+      (w.opcje.bezPolowek ? ' (pełnych)' : '') + '.';
   }
   $('miesiac').addEventListener('change', podpowiedz);
   $('rok').addEventListener('change', podpowiedz);
+  $('maks10h').addEventListener('change', podpowiedz);
+  $('bezPolowek').addEventListener('change', podpowiedz);
   window.addEventListener('pageshow', podpowiedz);
   podpowiedz();
 
@@ -323,11 +369,11 @@ button:active { transform: scale(.97); }
   function licz() {
     podpowiedz();
     var w = wybrany();
-    var wynik = R.rozdziel(w.rok, w.mc, $('godziny').value);
+    var wynik = R.rozdziel(w.rok, w.mc, $('godziny').value, w.opcje);
     if (wynik.blad) { pokazBlad(wynik.blad); $('godziny').focus(); return; }
     $('komunikat').textContent = '';
     $('godziny').removeAttribute('aria-invalid');
-    ostatni = { rok: w.rok, mc: w.mc, wynik: wynik };
+    ostatni = { rok: w.rok, mc: w.mc, opcje: w.opcje, wynik: wynik };
     pokaz();
   }
 
@@ -385,7 +431,7 @@ button:active { transform: scale(.97); }
   $('formularz').addEventListener('submit', function (e) { e.preventDefault(); bezpiecznie(licz)(); });
   $('ponownie').addEventListener('click', bezpiecznie(function () {
     if (!ostatni) return;
-    ostatni.wynik = R.rozdziel(ostatni.rok, ostatni.mc, ostatni.wynik.suma / 2);
+    ostatni.wynik = R.rozdziel(ostatni.rok, ostatni.mc, ostatni.wynik.suma / 2, ostatni.opcje);
     pokaz(true);
   }));
   $('drukuj').addEventListener('click', drukuj);
