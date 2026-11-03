@@ -94,8 +94,24 @@ input:focus-visible, select:focus-visible, button:focus-visible {
   outline: 3px solid var(--akcent);
   outline-offset: 2px;
 }
-#godziny { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; padding: 8px 12px; }
-#godziny[aria-invalid="true"] { border-color: var(--blad); }
+input[aria-invalid="true"] { border-color: var(--blad); }
+
+/* Lista osób */
+.osoby { grid-column: 1 / -1; border: 0; margin: 0; padding: 0; min-width: 0; }
+.osoby legend { font-size: .875rem; font-weight: 600; padding: 0; margin-bottom: 8px; }
+.naglowki, .osoba-wiersz {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) 6.5rem;
+  gap: 8px;
+  align-items: center;
+}
+.naglowki { font-size: .8125rem; color: var(--szary); margin-bottom: 6px; }
+.naglowki span:first-child { visibility: hidden; }
+.lista { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.nr { font-size: .9375rem; color: var(--szary); text-align: right; font-variant-numeric: tabular-nums; }
+.osoba-wiersz .godz { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.osoba-wiersz .komunikat { grid-column: 2 / -1; font-size: .875rem; }
+.ogolny { margin-top: 10px; }
 .podpowiedz { font-size: .875rem; color: var(--szary); margin: 0; }
 .komunikat { font-size: .9375rem; color: var(--blad); margin: 0; font-weight: 600; }
 .komunikat:empty { display: none; }
@@ -173,6 +189,7 @@ button:active { transform: scale(.97); }
 
 /* Dokument A4 — układ odmierzony ze wzoru (Arkusz1.pdf). 1cqw = 2,1 mm na wydruku. */
 .ramka { container-type: inline-size; }
+.ramka { display: flex; flex-direction: column; gap: 24px; }
 .arkusz {
   aspect-ratio: 210 / 297;
   background: #fff;
@@ -199,6 +216,7 @@ button:active { transform: scale(.97); }
   font-style: italic;
   font-weight: 700;
 }
+.arkusz .osoba .nazwisko { font-style: normal; font-weight: 400; margin-left: .6cqw; }
 .arkusz .osoba {
   height: 4.3cqw;
   vertical-align: bottom;
@@ -236,7 +254,7 @@ button:active { transform: scale(.97); }
   main { max-width: none; padding: 0; margin: 0; }
   h1, .wstep, form, .akcje { display: none !important; }
   #wynik { margin: 0; }
-  .ramka { width: 210mm; }
+  .ramka { width: 210mm; display: block; }
   .arkusz {
     width: 210mm;
     height: 296mm; /* milimetr zapasu, żeby nie powstała pusta druga strona */
@@ -245,13 +263,14 @@ button:active { transform: scale(.97); }
     border-radius: 0;
     break-inside: avoid;
   }
+  .arkusz + .arkusz { break-before: page; } /* każda osoba na osobnej kartce */
 }
 </style>
 </head>
 <body>
 <main>
   <h1>Ewidencja godzin</h1>
-  <p class="wstep">Wpisz, ile godzin masz w miesiącu. Przygotuję ewidencję czasu do wydruku: godziny rozłożę na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
+  <p class="wstep">Wpisz osoby i to, ile godzin każda ma w miesiącu. Dla każdej przygotuję osobną ewidencję czasu do wydruku: godziny rozłożę na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
 
   <form id="formularz" class="karta" novalidate>
     <div class="pola">
@@ -263,48 +282,50 @@ button:active { transform: scale(.97); }
         <label for="rok">Rok</label>
         <select id="rok"></select>
       </div>
-      <div class="pole szerokie">
-        <label for="godziny">Liczba godzin</label>
-        <input id="godziny" type="text" inputmode="decimal" autocomplete="off" placeholder="np. 87 albo 37,5" aria-describedby="podpowiedz komunikat">
-        <p id="podpowiedz" class="podpowiedz"></p>
-        <p id="komunikat" class="komunikat" role="alert"></p>
-      </div>
+      <p id="podpowiedz" class="podpowiedz pole szerokie"></p>
       <fieldset class="opcje">
-        <legend>Opcje</legend>
+        <legend>Opcje (dla wszystkich osób)</legend>
         <label class="opcja"><input type="checkbox" id="maks10h"> Maksymalnie 10 h w dniu</label>
         <label class="opcja"><input type="checkbox" id="bezPolowek"> Bez połówek (tylko pełne godziny)</label>
       </fieldset>
-      <button type="submit" class="glowny">Utwórz ewidencję</button>
+      <fieldset class="osoby">
+        <legend>Osoby</legend>
+        <div class="naglowki" aria-hidden="true"><span>Nr</span><span>Imię i nazwisko</span><span>Godziny</span></div>
+        <ol id="lista" class="lista"></ol>
+        <p id="komunikat" class="komunikat ogolny" role="alert"></p>
+      </fieldset>
+      <button type="submit" class="glowny">Utwórz ewidencje</button>
     </div>
   </form>
 
-  <section id="wynik" hidden aria-label="Ewidencja do wydruku">
+  <section id="wynik" hidden aria-label="Ewidencje do wydruku">
     <div class="akcje">
       <button type="button" class="drugi" id="drukuj">Drukuj / PDF</button>
       <button type="button" class="drugi" id="ponownie">Losuj ponownie</button>
     </div>
-
-    <div class="ramka">
-      <div class="arkusz">
-        <table>
-          <colgroup>
-            <col style="width:12%"><col style="width:14.7%"><col style="width:13.9%">
-            <col style="width:22.5%"><col style="width:18.6%"><col style="width:18.3%">
-          </colgroup>
-          <thead>
-            <tr><th colspan="6" class="tytul">EWIDENCJA CZASU ZLECENIOBIORCY</th></tr>
-            <tr><th colspan="6" class="osoba">IMIĘ I NAZWISKO ZLECENIOBIORCY:</th></tr>
-            <tr class="kolumny">
-              <th>DATA</th><th>OD GODZINY</th><th>DO GODZINY</th>
-              <th>ILOŚĆ GODZIN<br>PRZEPRACOWANYCH</th><th>PODPIS<br>ZLECENIOBIORCY</th><th>PODPIS<br>ZLECENIODAWCY</th>
-            </tr>
-          </thead>
-          <tbody id="wiersze"></tbody>
-        </table>
-      </div>
-    </div>
+    <div class="ramka" id="arkusze"></div>
   </section>
 </main>
+
+<template id="wzor">
+  <div class="arkusz">
+    <table>
+      <colgroup>
+        <col style="width:12%"><col style="width:14.7%"><col style="width:13.9%">
+        <col style="width:22.5%"><col style="width:18.6%"><col style="width:18.3%">
+      </colgroup>
+      <thead>
+        <tr><th colspan="6" class="tytul">EWIDENCJA CZASU ZLECENIOBIORCY</th></tr>
+        <tr><th colspan="6" class="osoba">IMIĘ I NAZWISKO ZLECENIOBIORCY:<span class="nazwisko"></span></th></tr>
+        <tr class="kolumny">
+          <th>DATA</th><th>OD GODZINY</th><th>DO GODZINY</th>
+          <th>ILOŚĆ GODZIN<br>PRZEPRACOWANYCH</th><th>PODPIS<br>ZLECENIOBIORCY</th><th>PODPIS<br>ZLECENIODAWCY</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</template>
 
 <!-- Przy każdej zmianie logika.js podbij ?v=, inaczej przeglądarka (pamięć 10 min) poda starą wersję. -->
 <script src="logika.js?v=4"></script>
@@ -318,7 +339,9 @@ button:active { transform: scale(.97); }
     $('formularz').addEventListener('submit', function (e) { e.preventDefault(); });
     return;
   }
+  var OSOB = 11;
   var WIERSZY = 31; // tyle wierszy ma wzór, niezależnie od liczby dni pracy
+  var PAMIEC = 'ewidencja-osoby-v1';
   var ostatni = null;
 
   function wielka(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -340,6 +363,48 @@ button:active { transform: scale(.97); }
   $('miesiac').value = teraz.getMonth() + 1;
   $('rok').value = teraz.getFullYear();
 
+  // Wiersze osób: imię i nazwisko + godziny
+  var osoby = [];
+  for (var n = 0; n < OSOB; n++) {
+    var li = document.createElement('li');
+    li.className = 'osoba-wiersz';
+    var nr = document.createElement('span');
+    nr.className = 'nr'; nr.textContent = (n + 1) + '.'; nr.setAttribute('aria-hidden', 'true');
+    var imie = document.createElement('input');
+    imie.type = 'text'; imie.autocomplete = 'off'; imie.id = 'imie' + n;
+    imie.setAttribute('aria-label', 'Osoba ' + (n + 1) + ': imię i nazwisko');
+    imie.placeholder = n === 0 ? 'np. Jan Kowalski' : '';
+    var godz = document.createElement('input');
+    godz.type = 'text'; godz.inputMode = 'decimal'; godz.autocomplete = 'off'; godz.className = 'godz';
+    godz.setAttribute('aria-label', 'Osoba ' + (n + 1) + ': liczba godzin');
+    godz.placeholder = n === 0 ? 'np. 87' : '';
+    var kom = document.createElement('p');
+    kom.className = 'komunikat'; kom.id = 'kom' + n;
+    godz.setAttribute('aria-describedby', kom.id);
+    imie.setAttribute('aria-describedby', kom.id);
+    li.appendChild(nr); li.appendChild(imie); li.appendChild(godz); li.appendChild(kom);
+    $('lista').appendChild(li);
+    osoby.push({ imie: imie, godz: godz, kom: kom });
+  }
+
+  // Imiona, nazwiska i opcje zostają w tej przeglądarce na następny miesiąc (godziny nie).
+  function zapamietaj() {
+    try {
+      localStorage.setItem(PAMIEC, JSON.stringify({
+        imiona: osoby.map(function (o) { return o.imie.value; }),
+        maks10h: $('maks10h').checked, bezPolowek: $('bezPolowek').checked
+      }));
+    } catch (e) { /* bez pamięci też działa */ }
+  }
+  try {
+    var zap = JSON.parse(localStorage.getItem(PAMIEC) || 'null');
+    if (zap) {
+      (zap.imiona || []).forEach(function (v, i) { if (osoby[i]) osoby[i].imie.value = v || ''; });
+      $('maks10h').checked = !!zap.maks10h;
+      $('bezPolowek').checked = !!zap.bezPolowek;
+    }
+  } catch (e) { /* brak dostępu do pamięci */ }
+
   function wybrany() {
     return {
       rok: +$('rok').value, mc: +$('miesiac').value,
@@ -351,29 +416,55 @@ button:active { transform: scale(.97); }
     var w = wybrany(), n = R.dniPracy(w.rok, w.mc).length;
     $('podpowiedz').textContent = wielka(R.MIESIACE[w.mc - 1]) + ' ' + w.rok + ': ' + n + ' ' + dniSlowo(n) +
       ' pracy, czyli od 4 do ' + R.formatGodzin(R.maksMiesiac(w.rok, w.mc, w.opcje)) + ' godzin' +
-      (w.opcje.bezPolowek ? ' (pełnych)' : '') + '.';
+      (w.opcje.bezPolowek ? ' (pełnych)' : '') + ' na osobę.';
   }
   $('miesiac').addEventListener('change', podpowiedz);
   $('rok').addEventListener('change', podpowiedz);
-  $('maks10h').addEventListener('change', podpowiedz);
-  $('bezPolowek').addEventListener('change', podpowiedz);
+  $('maks10h').addEventListener('change', function () { podpowiedz(); zapamietaj(); });
+  $('bezPolowek').addEventListener('change', function () { podpowiedz(); zapamietaj(); });
+  osoby.forEach(function (o) { o.imie.addEventListener('change', zapamietaj); });
   window.addEventListener('pageshow', podpowiedz);
   podpowiedz();
 
+  function wyczyscBledy() {
+    $('komunikat').textContent = '';
+    osoby.forEach(function (o) {
+      o.kom.textContent = '';
+      o.imie.removeAttribute('aria-invalid');
+      o.godz.removeAttribute('aria-invalid');
+    });
+  }
+
   function pokazBlad(tekst) {
     $('komunikat').textContent = tekst;
-    $('godziny').setAttribute('aria-invalid', 'true');
     $('wynik').hidden = true;
   }
 
   function licz() {
     podpowiedz();
-    var w = wybrany();
-    var wynik = R.rozdziel(w.rok, w.mc, $('godziny').value, w.opcje);
-    if (wynik.blad) { pokazBlad(wynik.blad); $('godziny').focus(); return; }
-    $('komunikat').textContent = '';
-    $('godziny').removeAttribute('aria-invalid');
-    ostatni = { rok: w.rok, mc: w.mc, opcje: w.opcje, wynik: wynik };
+    wyczyscBledy();
+    var w = wybrany(), lista = [], pierwszyZly = null;
+    osoby.forEach(function (o) {
+      var imie = o.imie.value.trim(), godz = o.godz.value.trim();
+      if (!imie && !godz) return; // pusty wiersz pomijamy
+      var blad = null, pole = o.godz, wynik = null;
+      if (!godz) blad = 'Wpisz liczbę godzin dla tej osoby.';
+      else {
+        wynik = R.rozdziel(w.rok, w.mc, godz, w.opcje);
+        if (wynik.blad) blad = wynik.blad;
+      }
+      if (blad) {
+        o.kom.textContent = blad;
+        pole.setAttribute('aria-invalid', 'true');
+        if (!pierwszyZly) pierwszyZly = pole;
+        return;
+      }
+      lista.push({ imie: imie, wynik: wynik });
+    });
+    if (pierwszyZly) { pokazBlad('Popraw zaznaczone wiersze.'); pierwszyZly.focus(); return; }
+    if (!lista.length) { pokazBlad('Wpisz godziny przynajmniej dla jednej osoby.'); osoby[0].imie.focus(); return; }
+    zapamietaj();
+    ostatni = { rok: w.rok, mc: w.mc, opcje: w.opcje, lista: lista };
     pokaz();
   }
 
@@ -383,11 +474,12 @@ button:active { transform: scale(.97); }
     tr.appendChild(td);
   }
 
-  function pokaz(ponowne) {
-    var o = ostatni, wpisy = o.wynik.wpisy;
-    var tb = $('wiersze');
+  function arkusz(o, osoba) {
+    var a = $('wzor').content.firstElementChild.cloneNode(true);
+    a.querySelector('.nazwisko').textContent = osoba.imie;
+    a.setAttribute('aria-label', 'Ewidencja: ' + (osoba.imie || 'bez nazwiska'));
+    var tb = a.querySelector('tbody'), wpisy = osoba.wynik.wpisy;
     var wierszSumy = wpisy.length + 1; // jeden pusty wiersz odstępu pod ostatnim dniem
-    tb.innerHTML = '';
     for (var i = 0; i < WIERSZY; i++) {
       var x = wpisy[i], tr = document.createElement('tr');
       komorka(tr, x && dwie(x.dzien) + '.' + dwie(o.mc) + '.' + o.rok);
@@ -400,10 +492,18 @@ button:active { transform: scale(.97); }
       komorka(tr, ''); // podpis zleceniodawcy
       tb.appendChild(tr);
     }
-    if (ponowne && tb.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      tb.animate([{ opacity: 0.4, filter: 'blur(1.5px)' }, { opacity: 1, filter: 'blur(0)' }],
+    return a;
+  }
+
+  function pokaz(ponowne) {
+    var o = ostatni, cel = $('arkusze');
+    cel.innerHTML = '';
+    o.lista.forEach(function (osoba) { cel.appendChild(arkusz(o, osoba)); });
+    if (ponowne && cel.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      cel.animate([{ opacity: 0.4, filter: 'blur(1.5px)' }, { opacity: 1, filter: 'blur(0)' }],
         { duration: 200, easing: 'cubic-bezier(.23, 1, .32, 1)' });
     }
+    $('drukuj').textContent = o.lista.length > 1 ? 'Drukuj / PDF (' + o.lista.length + ')' : 'Drukuj / PDF';
 
     var sekcja = $('wynik');
     var bylUkryty = sekcja.hidden;
@@ -413,7 +513,8 @@ button:active { transform: scale(.97); }
 
   function drukuj() {
     var tytul = document.title;
-    document.title = 'Ewidencja ' + ostatni.rok + '-' + dwie(ostatni.mc); // nazwa pliku PDF
+    var jedna = ostatni.lista.length === 1 && ostatni.lista[0].imie;
+    document.title = 'Ewidencja ' + ostatni.rok + '-' + dwie(ostatni.mc) + (jedna ? ' ' + jedna : ''); // nazwa pliku PDF
     window.print();
     setTimeout(function () { document.title = tytul; }, 500);
   }
@@ -431,7 +532,10 @@ button:active { transform: scale(.97); }
   $('formularz').addEventListener('submit', function (e) { e.preventDefault(); bezpiecznie(licz)(); });
   $('ponownie').addEventListener('click', bezpiecznie(function () {
     if (!ostatni) return;
-    ostatni.wynik = R.rozdziel(ostatni.rok, ostatni.mc, ostatni.wynik.suma / 2, ostatni.opcje);
+    ostatni.lista.forEach(function (osoba) {
+      var nowy = R.rozdziel(ostatni.rok, ostatni.mc, osoba.wynik.suma / 2, ostatni.opcje);
+      if (!nowy.blad) osoba.wynik = nowy;
+    });
     pokaz(true);
   }));
   $('drukuj').addEventListener('click', drukuj);
