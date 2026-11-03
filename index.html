@@ -101,7 +101,7 @@ input[aria-invalid="true"] { border-color: var(--blad); }
 .osoby legend { font-size: .875rem; font-weight: 600; padding: 0; margin-bottom: 8px; }
 .naglowki, .osoba-wiersz {
   display: grid;
-  grid-template-columns: 1.75rem minmax(0, 1fr) 6.5rem;
+  grid-template-columns: 1.75rem minmax(0, 1fr) 6rem 2.5rem;
   gap: 8px;
   align-items: center;
 }
@@ -111,6 +111,26 @@ input[aria-invalid="true"] { border-color: var(--blad); }
 .nr { font-size: .9375rem; color: var(--szary); text-align: right; font-variant-numeric: tabular-nums; }
 .osoba-wiersz .godz { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
 .osoba-wiersz .komunikat { grid-column: 2 / -1; font-size: .875rem; }
+.usun {
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--szary);
+  display: grid;
+  place-items: center;
+}
+.usun svg { width: 20px; height: 20px; }
+@media (hover: hover) and (pointer: fine) { .usun:hover { color: var(--blad); background: var(--papier); } }
+.drugi.dodaj {
+  width: 100%;
+  margin-top: 10px;
+  border-style: dashed;
+  color: var(--akcent);
+}
+@media (hover: hover) and (pointer: fine) { .drugi.dodaj:hover { background: var(--papier); } }
+.licznik { font-weight: 400; color: var(--szary); }
 .ogolny { margin-top: 10px; }
 .podpowiedz { font-size: .875rem; color: var(--szary); margin: 0; }
 .komunikat { font-size: .9375rem; color: var(--blad); margin: 0; font-weight: 600; }
@@ -270,7 +290,7 @@ button:active { transform: scale(.97); }
 <body>
 <main>
   <h1>Ewidencja godzin</h1>
-  <p class="wstep">Wpisz osoby i to, ile godzin każda ma w miesiącu. Dla każdej przygotuję osobną ewidencję czasu do wydruku: godziny rozłożę na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
+  <p class="wstep">Wpisz osoby (ile chcesz) i to, ile godzin każda ma w miesiącu. Dla każdej przygotuję osobną ewidencję czasu do wydruku: godziny rozłożę na dni od poniedziałku do soboty, między 8:00 a 22:00, z pominięciem niedziel i świąt.</p>
 
   <form id="formularz" class="karta" novalidate>
     <div class="pola">
@@ -289,9 +309,10 @@ button:active { transform: scale(.97); }
         <label class="opcja"><input type="checkbox" id="bezPolowek"> Bez połówek (tylko pełne godziny)</label>
       </fieldset>
       <fieldset class="osoby">
-        <legend>Osoby</legend>
-        <div class="naglowki" aria-hidden="true"><span>Nr</span><span>Imię i nazwisko</span><span>Godziny</span></div>
+        <legend>Osoby <span id="licznik" class="licznik"></span></legend>
+        <div class="naglowki" aria-hidden="true"><span>Nr</span><span>Imię i nazwisko</span><span>Godziny</span><span></span></div>
         <ol id="lista" class="lista"></ol>
+        <button type="button" class="drugi dodaj" id="dodaj">+ Dodaj osobę</button>
         <p id="komunikat" class="komunikat ogolny" role="alert"></p>
       </fieldset>
       <button type="submit" class="glowny">Utwórz ewidencje</button>
@@ -339,9 +360,9 @@ button:active { transform: scale(.97); }
     $('formularz').addEventListener('submit', function (e) { e.preventDefault(); });
     return;
   }
-  var OSOB = 11;
   var WIERSZY = 31; // tyle wierszy ma wzór, niezależnie od liczby dni pracy
   var PAMIEC = 'ewidencja-osoby-v1';
+  var IKONA_USUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   var ostatni = null;
 
   function wielka(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -363,47 +384,91 @@ button:active { transform: scale(.97); }
   $('miesiac').value = teraz.getMonth() + 1;
   $('rok').value = teraz.getFullYear();
 
-  // Wiersze osób: imię i nazwisko + godziny
-  var osoby = [];
-  for (var n = 0; n < OSOB; n++) {
+  // Wiersze osób: imię i nazwisko + godziny. Tyle wierszy, ile potrzeba.
+  var osoby = [], kolejny = 0;
+
+  function numeruj() {
+    osoby.forEach(function (o, i) {
+      o.nr.textContent = (i + 1) + '.';
+      o.imie.setAttribute('aria-label', 'Osoba ' + (i + 1) + ': imię i nazwisko');
+      o.godz.setAttribute('aria-label', 'Osoba ' + (i + 1) + ': liczba godzin');
+      o.usun.setAttribute('aria-label', 'Usuń osobę ' + (i + 1));
+      o.imie.placeholder = i === 0 ? 'np. Jan Kowalski' : '';
+      o.godz.placeholder = i === 0 ? 'np. 87' : '';
+    });
+    $('licznik').textContent = osoby.length > 1 ? '(' + osoby.length + ')' : '';
+  }
+
+  function dodajOsobe(imieTekst) {
+    var id = kolejny++;
     var li = document.createElement('li');
     li.className = 'osoba-wiersz';
     var nr = document.createElement('span');
-    nr.className = 'nr'; nr.textContent = (n + 1) + '.'; nr.setAttribute('aria-hidden', 'true');
+    nr.className = 'nr'; nr.setAttribute('aria-hidden', 'true');
     var imie = document.createElement('input');
-    imie.type = 'text'; imie.autocomplete = 'off'; imie.id = 'imie' + n;
-    imie.setAttribute('aria-label', 'Osoba ' + (n + 1) + ': imię i nazwisko');
-    imie.placeholder = n === 0 ? 'np. Jan Kowalski' : '';
+    imie.type = 'text'; imie.autocomplete = 'off'; imie.value = imieTekst || '';
     var godz = document.createElement('input');
     godz.type = 'text'; godz.inputMode = 'decimal'; godz.autocomplete = 'off'; godz.className = 'godz';
-    godz.setAttribute('aria-label', 'Osoba ' + (n + 1) + ': liczba godzin');
-    godz.placeholder = n === 0 ? 'np. 87' : '';
+    var usun = document.createElement('button');
+    usun.type = 'button'; usun.className = 'usun'; usun.innerHTML = IKONA_USUN;
     var kom = document.createElement('p');
-    kom.className = 'komunikat'; kom.id = 'kom' + n;
+    kom.className = 'komunikat'; kom.id = 'kom' + id;
     godz.setAttribute('aria-describedby', kom.id);
     imie.setAttribute('aria-describedby', kom.id);
-    li.appendChild(nr); li.appendChild(imie); li.appendChild(godz); li.appendChild(kom);
+    li.appendChild(nr); li.appendChild(imie); li.appendChild(godz); li.appendChild(usun); li.appendChild(kom);
     $('lista').appendChild(li);
-    osoby.push({ imie: imie, godz: godz, kom: kom });
+    var o = { li: li, nr: nr, imie: imie, godz: godz, usun: usun, kom: kom };
+    imie.addEventListener('change', zapamietaj);
+    usun.addEventListener('click', function () { usunOsobe(o); });
+    osoby.push(o);
+    numeruj();
+    return o;
   }
+
+  function usunOsobe(o) {
+    var i = osoby.indexOf(o);
+    if (osoby.length === 1) { // ostatniego wiersza nie usuwamy, tylko czyścimy
+      o.imie.value = ''; o.godz.value = ''; o.kom.textContent = '';
+      o.imie.focus();
+    } else {
+      o.li.remove();
+      osoby.splice(i, 1);
+      numeruj();
+      var nast = osoby[Math.min(i, osoby.length - 1)];
+      nast.imie.focus();
+    }
+    zapamietaj();
+  }
+
+  $('dodaj').addEventListener('click', function () {
+    var o = dodajOsobe('');
+    o.imie.focus();
+    zapamietaj();
+  });
 
   // Imiona, nazwiska i opcje zostają w tej przeglądarce na następny miesiąc (godziny nie).
   function zapamietaj() {
     try {
+      var imiona = osoby.map(function (o) { return o.imie.value; });
+      while (imiona.length && !imiona[imiona.length - 1].trim()) imiona.pop(); // puste na końcu pomijamy
       localStorage.setItem(PAMIEC, JSON.stringify({
-        imiona: osoby.map(function (o) { return o.imie.value; }),
+        imiona: imiona,
         maks10h: $('maks10h').checked, bezPolowek: $('bezPolowek').checked
       }));
     } catch (e) { /* bez pamięci też działa */ }
   }
+  var zapisane = [];
   try {
     var zap = JSON.parse(localStorage.getItem(PAMIEC) || 'null');
     if (zap) {
-      (zap.imiona || []).forEach(function (v, i) { if (osoby[i]) osoby[i].imie.value = v || ''; });
+      zapisane = (zap.imiona || []).map(function (v) { return String(v || ''); });
+      while (zapisane.length && !zapisane[zapisane.length - 1].trim()) zapisane.pop();
       $('maks10h').checked = !!zap.maks10h;
       $('bezPolowek').checked = !!zap.bezPolowek;
     }
   } catch (e) { /* brak dostępu do pamięci */ }
+  if (!zapisane.length) zapisane = [''];
+  zapisane.forEach(dodajOsobe);
 
   function wybrany() {
     return {
@@ -422,7 +487,6 @@ button:active { transform: scale(.97); }
   $('rok').addEventListener('change', podpowiedz);
   $('maks10h').addEventListener('change', function () { podpowiedz(); zapamietaj(); });
   $('bezPolowek').addEventListener('change', function () { podpowiedz(); zapamietaj(); });
-  osoby.forEach(function (o) { o.imie.addEventListener('change', zapamietaj); });
   window.addEventListener('pageshow', podpowiedz);
   podpowiedz();
 
